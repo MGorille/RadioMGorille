@@ -324,6 +324,7 @@
         let isMGMode = false;
         let savedUserInput = "";
         let ytApiReady = false;
+        let adRecoveryTimer = null;
         
         const mgPlaylists = [
             "PLummJXUqplFwnSWc9NmoReXUxzex2nePK",
@@ -389,7 +390,56 @@
                 
                 localStorage.setItem('saved_jukebox_playlists', textarea.value);
             });
+
+            // Initialize fast DOM element scrubber & ad overlay observer
+            initAdScrubber();
         });
+
+        function initAdScrubber() {
+            const container = document.getElementById('player-container');
+            if (!container) return;
+
+            const observer = new MutationObserver((mutations) => {
+                // Instantly remove injected ad/promo elements inside the player wrapper
+                const adSelectors = [
+                    '.ytp-ad-overlay-container',
+                    '.ytp-ad-module',
+                    '.video-ads',
+                    '.ytp-ad-player-overlay',
+                    'iframe[src*="ad"]'
+                ];
+                
+                let foundAd = false;
+                adSelectors.forEach(selector => {
+                    container.querySelectorAll(selector).forEach(el => {
+                        el.style.display = 'none';
+                        el.remove();
+                        foundAd = true;
+                    });
+                });
+
+                // If an ad overlay triggered a stall/black screen state, trigger fast recovery
+                if (foundAd && isJukeboxActive) {
+                    checkAndTriggerFastRecovery();
+                }
+            });
+
+            observer.observe(container, { childList: true, subtree: true });
+        }
+
+        function checkAndTriggerFastRecovery() {
+            if (adRecoveryTimer) return; // Prevent spamming
+            adRecoveryTimer = setTimeout(() => {
+                adRecoveryTimer = null;
+                if (player && typeof player.getPlayerState === 'function') {
+                    const state = player.getPlayerState();
+                    // State -1 (unstarted) or 3 (buffering) stuck during ad injection
+                    if (state === -1 || state === 3) {
+                        playRandomMasterTrack();
+                    }
+                }
+            }, 800); // Sub-second fast-forward recovery
+        }
 
         function onYouTubeIframeAPIReady() {
             ytApiReady = true;
@@ -399,6 +449,9 @@
                 playerVars: {
                     'autoplay': 1,
                     'enablejsapi': 1,
+                    'iv_load_policy': 3,
+                    'modestbranding': 1,
+                    'rel': 0,
                     'origin': window.location.origin
                 },
                 events: { 
@@ -406,6 +459,11 @@
                     'onStateChange': e => { 
                         if(e.data === 0) {
                             handleVideoEnd();
+                        } else if (e.data === 3 || e.data === -1) {
+                            // Watch for potential ad-induced hangs and setup safety timeout
+                            if (isJukeboxActive) {
+                                checkAndTriggerFastRecovery();
+                            }
                         }
                         updateSongTitle();
                     }, 
@@ -570,29 +628,4 @@
             if(!isJukeboxActive || masterTrackPool.length === 0) return;
             player.loadVideoById(masterTrackPool[Math.floor(Math.random() * masterTrackPool.length)]);
             updateSongTitle();
-            document.getElementById('status-display').innerText = `Tracks: ${masterTrackPool.length}`;
-        }
-
-        function updateSongTitle() {
-            if (player && typeof player.isMuted === 'function' && player.isMuted()) {
-                document.getElementById('current-song-title').innerText = "Loading...";
-                return;
-            }
-
-            setTimeout(() => {
-                if (player && typeof player.isMuted === 'function' && player.isMuted()) {
-                    document.getElementById('current-song-title').innerText = "Loading...";
-                    return;
-                }
-
-                if (player && typeof player.getVideoData === 'function') {
-                    const data = player.getVideoData();
-                    if (data && data.title) {
-                        document.getElementById('current-song-title').innerText = data.title;
-                    }
-                }
-            }, 600);
-        }
-    </script>
-</body>
-</html>
+            document.getElementById('
