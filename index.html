@@ -244,7 +244,7 @@
         textarea { width: 100%; height: 80px; background: #121212; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 10px; font-family: monospace; resize: vertical; box-sizing: border-box; white-space: pre; word-wrap: normal; overflow-x: auto; }
         textarea:focus { outline: none; border-color: #2ecc71; }
         
-        .button-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .button-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0px; flex-wrap: wrap; gap: 10px; }
         
         button { background-color: #2ecc71; color: black; border: none; padding: 10px 18px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
         button:hover { background-color: #27ae60; }
@@ -254,15 +254,14 @@
         button.toggle-btn:hover { color: #fff; background: #2a2a2a; border-radius: 4px; }
         
         #mg-toggle { 
-            width: 100%; 
-            margin-top: 10px; 
             background: #2c3e50; 
             color: #95a5a6; 
             font-size: 12px; 
-            padding: 8px; 
+            padding: 8px 14px; 
             font-weight: bold;
+            border-radius: 6px;
         }
-        #mg-toggle:hover { background: #34495e; }
+        #mg-toggle:hover { background: #34495e; color: #fff; }
         #mg-toggle.active { background: #2ecc71; color: black; }
         #mg-toggle.active:hover { background: #27ae60; }
 
@@ -303,17 +302,19 @@
 
         <div id="control-panel" class="control-panel collapsed">
             <div class="button-row">
-                <div style="display:flex; align-items:center; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <button class="toggle-btn" id="toggle-collapse-btn" onclick="toggleControlPanel()">▼</button>
                     <span id="status-display" style="font-size: 13px; color: #bbb;">Ready.</span>
                     <span id="click-hint" style="font-size: 13px; color: #666; font-style: italic;">(click to add playlists)</span>
                 </div>
-                <button onclick="initJukebox()">Go Go Radio!</button>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button id="mg-toggle" onclick="toggleMGorilleMode()">Radio M.Gorille</button>
+                    <button onclick="initJukebox()">Go Go Radio!</button>
+                </div>
             </div>
-            <div id="input-container">
+            <div id="input-container" style="margin-top: 14px;">
                 <p style="font-size: 13px; color: #bbb; margin: 0 0 8px 0;">Paste your Playlist URLs (one per line):</p>
                 <textarea id="playlist-input" wrap="off"></textarea>
-                <button id="mg-toggle" onclick="toggleMGorilleMode()">Radio M.Gorille</button>
             </div>
         </div>
     </div>
@@ -322,7 +323,6 @@
     <script>
         let player, masterTrackPool = [], isJukeboxActive = false;
         let isMGMode = false;
-        let savedUserInput = "";
         let ytApiReady = false;
         let adRecoveryTimer = null;
         
@@ -346,12 +346,9 @@
             if (wasMG) {
                 isMGMode = true;
                 const btn = document.getElementById('mg-toggle');
-                const input = document.getElementById('playlist-input');
                 const modeIndicator = document.getElementById('now-playing-mode');
                 
                 btn.classList.add('active');
-                input.value = "Enjoy!";
-                input.disabled = true;
                 btn.innerText = "Radio M.Gorille: ON";
                 modeIndicator.innerText = ": Radio M.Gorille";
             }
@@ -400,7 +397,6 @@
             if (!container) return;
 
             const observer = new MutationObserver((mutations) => {
-                // Instantly remove injected ad/promo elements inside the player wrapper
                 const adSelectors = [
                     '.ytp-ad-overlay-container',
                     '.ytp-ad-module',
@@ -418,7 +414,6 @@
                     });
                 });
 
-                // If an ad overlay triggered a stall/black screen state, trigger fast recovery
                 if (foundAd && isJukeboxActive) {
                     checkAndTriggerFastRecovery();
                 }
@@ -428,17 +423,16 @@
         }
 
         function checkAndTriggerFastRecovery() {
-            if (adRecoveryTimer) return; // Prevent spamming
+            if (adRecoveryTimer) return;
             adRecoveryTimer = setTimeout(() => {
                 adRecoveryTimer = null;
                 if (player && typeof player.getPlayerState === 'function') {
                     const state = player.getPlayerState();
-                    // State -1 (unstarted) or 3 (buffering) stuck during ad injection
                     if (state === -1 || state === 3) {
                         playRandomMasterTrack();
                     }
                 }
-            }, 800); // Sub-second fast-forward recovery
+            }, 800);
         }
 
         function onYouTubeIframeAPIReady() {
@@ -460,7 +454,6 @@
                         if(e.data === 0) {
                             handleVideoEnd();
                         } else if (e.data === 3 || e.data === -1) {
-                            // Watch for potential ad-induced hangs and setup safety timeout
                             if (isJukeboxActive) {
                                 checkAndTriggerFastRecovery();
                             }
@@ -477,20 +470,14 @@
         function toggleMGorilleMode() {
             isMGMode = !isMGMode;
             const btn = document.getElementById('mg-toggle');
-            const input = document.getElementById('playlist-input');
             const modeIndicator = document.getElementById('now-playing-mode');
             btn.classList.toggle('active');
 
             if (isMGMode) {
-                savedUserInput = input.value;
-                input.value = "Enjoy!";
-                input.disabled = true;
                 btn.innerText = "Radio M.Gorille: ON";
                 modeIndicator.innerText = ": Radio M.Gorille";
                 localStorage.setItem('saved_mg_mode', 'true');
             } else {
-                input.disabled = false;
-                input.value = savedUserInput;
                 btn.innerText = "Radio M.Gorille";
                 modeIndicator.innerText = "";
                 localStorage.setItem('saved_mg_mode', 'false');
@@ -524,108 +511,4 @@
                 const rawText = document.getElementById('playlist-input').value;
                 localStorage.setItem('saved_jukebox_playlists', rawText);
                 localStorage.setItem('saved_mg_mode', 'false');
-                targetPlaylists = [...new Set(rawText.split(/[\n,]+/).map(i => {
-                    if (i.includes('list=')) {
-                        try {
-                            const url = new URL(i.startsWith('http') ? i : 'https://www.youtube.com' + i);
-                            return url.searchParams.get('list');
-                        } catch (e) { return null; }
-                    }
-                    return i.trim().length > 5 ? i.trim() : null;
-                }).filter(Boolean))];
-            }
-
-            if (targetPlaylists.length === 0) {
-                alert('Please enter at least one valid playlist URL.');
-                document.getElementById('current-song-title').innerText = "Waiting for playback to begin...";
-                return;
-            }
-
-            isJukeboxActive = true;
-            masterTrackPool = [];
-            
-            if (player && typeof player.mute === 'function') {
-                player.mute();
-            }
-
-            document.getElementById('tutorial-overlay').classList.add('hidden');
-
-            const overlay = document.getElementById('loading-overlay');
-            const fillBar = document.getElementById('progress-bar-fill');
-            const statusLabel = document.getElementById('overlay-status');
-            
-            overlay.classList.remove('hidden');
-            fillBar.style.width = '0%';
-
-            if (isMGMode) {
-                statusLabel.innerText = `${modeTitle}...`;
-            } else {
-                statusLabel.innerText = `${modeTitle}... (0/${targetPlaylists.length})`;
-            }
-            document.getElementById('status-display').innerText = `${modeTitle}...`;
-
-            for (let i = 0; i < targetPlaylists.length; i++) {
-                let currentCount = i + 1;
-                let percent = Math.round((currentCount / targetPlaylists.length) * 100);
-                
-                fillBar.style.width = percent + '%';
-                
-                if (isMGMode) {
-                    statusLabel.innerText = `${modeTitle}...`;
-                } else {
-                    statusLabel.innerText = `${modeTitle}... (${currentCount}/${targetPlaylists.length})`;
-                }
-                
-                player.loadPlaylist({list: targetPlaylists[i], listType: 'playlist', index: 0});
-                await new Promise(r => setTimeout(r, 1500));
-                try {
-                    const tracks = player.getPlaylist();
-                    if(tracks && Array.isArray(tracks)) {
-                        tracks.forEach(vId => masterTrackPool.push(vId));
-                    }
-                } catch (e) {}
-            }
-            
-            masterTrackPool = [...new Set(masterTrackPool)];
-            
-            if (player && typeof player.unMute === 'function') {
-                player.unMute();
-            }
-
-            overlay.classList.add('hidden');
-            
-            const panel = document.getElementById('control-panel');
-            const hint = document.getElementById('click-hint');
-            if (!panel.classList.contains('collapsed')) {
-                panel.classList.add('collapsed');
-                hint.style.display = 'inline';
-            }
-            
-            if (masterTrackPool.length > 0) {
-                playRandomMasterTrack();
-            } else {
-                alert('Could not index tracks. Make sure the playlist links are public.');
-                document.getElementById('current-song-title').innerText = "Waiting for playback to begin...";
-            }
-        }
-
-        function handleVideoEnd() {
-            if (isJukeboxActive && masterTrackPool.length > 0) {
-                playRandomMasterTrack();
-            }
-        }
-
-        function handleSkipButton() {
-            if (isJukeboxActive && masterTrackPool.length > 0) {
-                document.getElementById('current-song-title').innerText = "Loading...";
-                playRandomMasterTrack();
-            } else {
-                initJukebox();
-            }
-        }
-
-        function playRandomMasterTrack() {
-            if(!isJukeboxActive || masterTrackPool.length === 0) return;
-            player.loadVideoById(masterTrackPool[Math.floor(Math.random() * masterTrackPool.length)]);
-            updateSongTitle();
-            document.getElementById('
+                targetPlaylists
