@@ -337,94 +337,347 @@
         ];
 
         window.addEventListener('DOMContentLoaded', () => {
-            const saved = localStorage.getItem('saved_jukebox_playlists');
-            if (saved) {
-                document.getElementById('playlist-input').value = saved;
-            }
-
-            const wasMG = localStorage.getItem('saved_mg_mode') === 'true';
-            if (wasMG) {
-                isMGMode = true;
-                const btn = document.getElementById('mg-toggle');
-                const input = document.getElementById('playlist-input');
-                const modeIndicator = document.getElementById('now-playing-mode');
-                
-                btn.classList.add('active');
-                input.value = "Enjoy!";
-                input.disabled = true;
-                btn.innerText = "Radio M.Gorille: ON";
-                modeIndicator.innerText = ": Radio M.Gorille";
-            }
-            
-            localStorage.removeItem('saved_mg_mode');
-
-            // Set initial hint visibility based on control panel collapsed state
-            const panel = document.getElementById('control-panel');
-            const hint = document.getElementById('click-hint');
-            if (panel.classList.contains('collapsed')) {
-                hint.style.display = 'inline';
-            } else {
-                hint.style.display = 'none';
-            }
-
-            // Intercept paste events to automatically append a newline so the cursor drops down immediately
-            const textarea = document.getElementById('playlist-input');
-            textarea.addEventListener('paste', (e) => {
-                if (isMGMode) return;
-                e.preventDefault();
-                
-                const pastedData = (e.clipboardData || window.clipboardData).getData('text');
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                const val = textarea.value;
-
-                let addition = pastedData;
-                if (!addition.endsWith('\n') && !addition.endsWith('\r')) {
-                    addition += '\n';
+            try {
+                const saved = localStorage.getItem('saved_jukebox_playlists');
+                if (saved) {
+                    const inputEl = document.getElementById('playlist-input');
+                    if (inputEl) inputEl.value = saved;
                 }
 
-                textarea.value = val.substring(0, start) + addition + val.substring(end);
+                const wasMG = localStorage.getItem('saved_mg_mode') === 'true';
+                if (wasMG) {
+                    isMGMode = true;
+                    const btn = document.getElementById('mg-toggle');
+                    const input = document.getElementById('playlist-input');
+                    const modeIndicator = document.getElementById('now-playing-mode');
+                    
+                    if (btn) btn.classList.add('active');
+                    if (input) {
+                        input.value = "Enjoy!";
+                        input.disabled = true;
+                    }
+                    if (btn) btn.innerText = "Radio M.Gorille: ON";
+                    if (modeIndicator) modeIndicator.innerText = ": Radio M.Gorille";
+                }
                 
-                const newCursorPos = start + addition.length;
-                textarea.setSelectionRange(newCursorPos, newCursorPos);
-                
-                localStorage.setItem('saved_jukebox_playlists', textarea.value);
-            });
+                localStorage.removeItem('saved_mg_mode');
 
-            // Initialize fast DOM element scrubber & ad overlay observer
-            initAdScrubber();
+                const panel = document.getElementById('control-panel');
+                const hint = document.getElementById('click-hint');
+                if (panel && hint) {
+                    if (panel.classList.contains('collapsed')) {
+                        hint.style.display = 'inline';
+                    } else {
+                        hint.style.display = 'none';
+                    }
+                }
+
+                const textarea = document.getElementById('playlist-input');
+                if (textarea) {
+                    textarea.addEventListener('paste', (e) => {
+                        if (isMGMode) return;
+                        e.preventDefault();
+                        
+                        const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const val = textarea.value;
+
+                        let addition = pastedData;
+                        if (!addition.endsWith('\n') && !addition.endsWith('\r')) {
+                            addition += '\n';
+                        }
+
+                        textarea.value = val.substring(0, start) + addition + val.substring(end);
+                        
+                        const newCursorPos = start + addition.length;
+                        textarea.setSelectionRange(newCursorPos, newCursorPos);
+                        
+                        localStorage.setItem('saved_jukebox_playlists', textarea.value);
+                    });
+                }
+
+                initAdScrubber();
+            } catch (err) {
+                console.error("Initialization error:", err);
+            }
         });
 
         function initAdScrubber() {
-            const container = document.getElementById('player-container');
-            if (!container) return;
+            try {
+                const container = document.getElementById('player-container');
+                if (!container) return;
 
-            const observer = new MutationObserver((mutations) => {
-                const adSelectors = [
-                    '.ytp-ad-overlay-container',
-                    '.ytp-ad-module',
-                    '.video-ads',
-                    '.ytp-ad-player-overlay',
-                    'iframe[src*="ad"]'
-                ];
-                
-                let foundAd = false;
-                adSelectors.forEach(selector => {
-                    container.querySelectorAll(selector).forEach(el => {
-                        el.style.display = 'none';
-                        el.remove();
-                        foundAd = true;
+                const observer = new MutationObserver((mutations) => {
+                    const adSelectors = [
+                        '.ytp-ad-overlay-container',
+                        '.ytp-ad-module',
+                        '.video-ads',
+                        '.ytp-ad-player-overlay',
+                        'iframe[src*="ad"]'
+                    ];
+                    
+                    let foundAd = false;
+                    adSelectors.forEach(selector => {
+                        container.querySelectorAll(selector).forEach(el => {
+                            el.style.display = 'none';
+                            el.remove();
+                            foundAd = true;
+                        });
                     });
+
+                    if (foundAd && isJukeboxActive) {
+                        checkAndTriggerFastRecovery();
+                    }
                 });
 
-                if (foundAd && isJukeboxActive) {
-                    checkAndTriggerFastRecovery();
-                }
-            });
-
-            observer.observe(container, { childList: true, subtree: true });
+                observer.observe(container, { childList: true, subtree: true });
+            } catch (e) {}
         }
 
         function checkAndTriggerFastRecovery() {
             if (adRecoveryTimer) return;
             adRecoveryTimer = setTimeout(() => {
+                adRecoveryTimer = null;
+                if (player && typeof player.getPlayerState === 'function') {
+                    const state = player.getPlayerState();
+                    if (state === -1 || state === 3) {
+                        playRandomMasterTrack();
+                    }
+                }
+            }, 800);
+        }
+
+        function onYouTubeIframeAPIReady() {
+            ytApiReady = true;
+            try {
+                player = new YT.Player('youtube-player', { 
+                    height: '100%', 
+                    width: '100%', 
+                    playerVars: {
+                        'autoplay': 1,
+                        'enablejsapi': 1,
+                        'iv_load_policy': 3,
+                        'modestbranding': 1,
+                        'rel': 0,
+                        'origin': window.location.origin
+                    },
+                    events: { 
+                        'onReady': () => {},
+                        'onStateChange': e => { 
+                            if(e.data === 0) {
+                                handleVideoEnd();
+                            } else if (e.data === 3 || e.data === -1) {
+                                if (isJukeboxActive) {
+                                    checkAndTriggerFastRecovery();
+                                }
+                            }
+                            updateSongTitle();
+                        }, 
+                        'onError': () => {
+                            if (isJukeboxActive) playRandomMasterTrack();
+                        } 
+                    } 
+                });
+            } catch (e) {
+                console.error("YT Player init error:", e);
+            }
+        }
+
+        function toggleMGorilleMode() {
+            isMGMode = !isMGMode;
+            const btn = document.getElementById('mg-toggle');
+            const input = document.getElementById('playlist-input');
+            const modeIndicator = document.getElementById('now-playing-mode');
+            if (btn) btn.classList.toggle('active');
+
+            if (isMGMode) {
+                if (input) {
+                    savedUserInput = input.value;
+                    input.value = "Enjoy!";
+                    input.disabled = true;
+                }
+                if (btn) btn.innerText = "Radio M.Gorille: ON";
+                if (modeIndicator) modeIndicator.innerText = ": Radio M.Gorille";
+                localStorage.setItem('saved_mg_mode', 'true');
+            } else {
+                if (input) {
+                    input.disabled = false;
+                    input.value = savedUserInput;
+                }
+                if (btn) btn.innerText = "Radio M.Gorille";
+                if (modeIndicator) modeIndicator.innerText = "";
+                localStorage.setItem('saved_mg_mode', 'false');
+            }
+
+            initJukebox();
+        }
+
+        function toggleControlPanel() { 
+            const panel = document.getElementById('control-panel');
+            const hint = document.getElementById('click-hint');
+            if (panel) panel.classList.toggle('collapsed'); 
+
+            if (panel && hint) {
+                if (panel.classList.contains('collapsed')) {
+                    hint.style.display = 'inline';
+                } else {
+                    hint.style.display = 'none';
+                }
+            }
+        }
+
+        async function initJukebox() {
+            let targetPlaylists = [];
+            let modeTitle = isMGMode ? "Loading Radio M.Gorille" : "Loading Your Playlists";
+
+            const songTitleEl = document.getElementById('current-song-title');
+            if (songTitleEl) songTitleEl.innerText = "Loading...";
+
+            if (isMGMode) {
+                targetPlaylists = mgPlaylists;
+                localStorage.setItem('saved_mg_mode', 'true');
+            } else {
+                const inputEl = document.getElementById('playlist-input');
+                const rawText = inputEl ? inputEl.value : "";
+                localStorage.setItem('saved_jukebox_playlists', rawText);
+                localStorage.setItem('saved_mg_mode', 'false');
+                targetPlaylists = [...new Set(rawText.split(/[\n,]+/).map(i => {
+                    if (i.includes('list=')) {
+                        try {
+                            const url = new URL(i.startsWith('http') ? i : 'https://www.youtube.com' + i);
+                            return url.searchParams.get('list');
+                        } catch (e) { return null; }
+                    }
+                    return i.trim().length > 5 ? i.trim() : null;
+                }).filter(Boolean))];
+            }
+
+            if (targetPlaylists.length === 0) {
+                alert('Please enter at least one valid playlist URL.');
+                if (songTitleEl) songTitleEl.innerText = "Waiting for playback to begin...";
+                return;
+            }
+
+            isJukeboxActive = true;
+            masterTrackPool = [];
+            
+            if (player && typeof player.mute === 'function') {
+                player.mute();
+            }
+
+            const tutorialOverlay = document.getElementById('tutorial-overlay');
+            if (tutorialOverlay) tutorialOverlay.classList.add('hidden');
+
+            const overlay = document.getElementById('loading-overlay');
+            const fillBar = document.getElementById('progress-bar-fill');
+            const statusLabel = document.getElementById('overlay-status');
+            
+            if (overlay) overlay.classList.remove('hidden');
+            if (fillBar) fillBar.style.width = '0%';
+
+            if (statusLabel) {
+                statusLabel.innerText = isMGMode ? `${modeTitle}...` : `${modeTitle}... (0/${targetPlaylists.length})`;
+            }
+            const statusDisplay = document.getElementById('status-display');
+            if (statusDisplay) statusDisplay.innerText = `${modeTitle}...`;
+
+            for (let i = 0; i < targetPlaylists.length; i++) {
+                let currentCount = i + 1;
+                let percent = Math.round((currentCount / targetPlaylists.length) * 100);
+                
+                if (fillBar) fillBar.style.width = percent + '%';
+                
+                if (statusLabel) {
+                    statusLabel.innerText = isMGMode ? `${modeTitle}...` : `${modeTitle}... (${currentCount}/${targetPlaylists.length})`;
+                }
+                
+                if (player && typeof player.loadPlaylist === 'function') {
+                    player.loadPlaylist({list: targetPlaylists[i], listType: 'playlist', index: 0});
+                }
+                await new Promise(r => setTimeout(r, 1500));
+                try {
+                    if (player && typeof player.getPlaylist === 'function') {
+                        const tracks = player.getPlaylist();
+                        if(tracks && Array.isArray(tracks)) {
+                            tracks.forEach(vId => masterTrackPool.push(vId));
+                        }
+                    }
+                } catch (e) {}
+            }
+            
+            masterTrackPool = [...new Set(masterTrackPool)];
+            
+            if (player && typeof player.unMute === 'function') {
+                player.unMute();
+            }
+
+            if (overlay) overlay.classList.add('hidden');
+            
+            const panel = document.getElementById('control-panel');
+            const hint = document.getElementById('click-hint');
+            if (panel && !panel.classList.contains('collapsed')) {
+                panel.classList.add('collapsed');
+                if (hint) hint.style.display = 'inline';
+            }
+            
+            if (masterTrackPool.length > 0) {
+                playRandomMasterTrack();
+            } else {
+                alert('Could not index tracks. Make sure the playlist links are public.');
+                if (songTitleEl) songTitleEl.innerText = "Waiting for playback to begin...";
+            }
+        }
+
+        function handleVideoEnd() {
+            if (isJukeboxActive && masterTrackPool.length > 0) {
+                playRandomMasterTrack();
+            }
+        }
+
+        function handleSkipButton() {
+            if (isJukeboxActive && masterTrackPool.length > 0) {
+                const songTitleEl = document.getElementById('current-song-title');
+                if (songTitleEl) songTitleEl.innerText = "Loading...";
+                playRandomMasterTrack();
+            } else {
+                initJukebox();
+            }
+        }
+
+        function playRandomMasterTrack() {
+            if(!isJukeboxActive || masterTrackPool.length === 0) return;
+            if (player && typeof player.loadVideoById === 'function') {
+                player.loadVideoById(masterTrackPool[Math.floor(Math.random() * masterTrackPool.length)]);
+            }
+            updateSongTitle();
+            const statusDisplay = document.getElementById('status-display');
+            if (statusDisplay) statusDisplay.innerText = `Tracks: ${masterTrackPool.length}`;
+        }
+
+        function updateSongTitle() {
+            if (player && typeof player.isMuted === 'function' && player.isMuted()) {
+                const songTitleEl = document.getElementById('current-song-title');
+                if (songTitleEl) songTitleEl.innerText = "Loading...";
+                return;
+            }
+
+            setTimeout(() => {
+                if (player && typeof player.isMuted === 'function' && player.isMuted()) {
+                    const songTitleEl = document.getElementById('current-song-title');
+                    if (songTitleEl) songTitleEl.innerText = "Loading...";
+                    return;
+                }
+
+                if (player && typeof player.getVideoData === 'function') {
+                    const data = player.getVideoData();
+                    if (data && data.title) {
+                        const songTitleEl = document.getElementById('current-song-title');
+                        if (songTitleEl) songTitleEl.innerText = data.title;
+                    }
+                }
+            }, 600);
+        }
+    </script>
+</body>
+</html>
