@@ -574,10 +574,10 @@
                 
                 player.loadPlaylist({list: targetPlaylists[i], listType: 'playlist', index: 0});
                 
-                // Resilient retry loop to give ad-blockers/network buffers time to resolve
+                // Fast non-blocking check with instant fallback if ad blockers restrict getPlaylist()
                 let tracksLoaded = false;
-                for (let retry = 0; retry < 4; retry++) {
-                    await new Promise(r => setTimeout(r, 800));
+                for (let retry = 0; retry < 2; retry++) {
+                    await new Promise(r => setTimeout(r, 600));
                     try {
                         const tracks = player.getPlaylist();
                         if (tracks && Array.isArray(tracks) && tracks.length > 0) {
@@ -586,6 +586,11 @@
                             break;
                         }
                     } catch (e) {}
+                }
+
+                // Fallback: If ad-blocker shields getPlaylist(), inject the playlist ID directly as a fallback track reference
+                if (!tracksLoaded) {
+                    masterTrackPool.push(targetPlaylists[i]);
                 }
             }
             
@@ -629,7 +634,15 @@
 
         function playRandomMasterTrack() {
             if(!isJukeboxActive || masterTrackPool.length === 0) return;
-            player.loadVideoById(masterTrackPool[Math.floor(Math.random() * masterTrackPool.length)]);
+            const target = masterTrackPool[Math.floor(Math.random() * masterTrackPool.length)];
+            
+            // If it's a playlist ID fallback rather than a direct video ID, load it via playlist mode
+            if (target.length > 15 && !target.match(/^[a-zA-Z0-9_-]{11}$/)) {
+                player.loadPlaylist({list: target, listType: 'playlist', index: Math.floor(Math.random() * 5)});
+            } else {
+                player.loadVideoById(target);
+            }
+            
             updateSongTitle();
             document.getElementById('status-display').innerText = `Tracks: ${masterTrackPool.length}`;
         }
