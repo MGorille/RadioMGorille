@@ -1,110 +1,1150 @@
-async function initJukebox() {
+ <!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2214%22 font-size=%2214%22>🎧</text></svg>">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Radio M.Gorille</title>
+
+    <style>
+
+        body {
+
+            font-family: sans-serif;
+
+            background-color: #121212;
+
+            color: #ffffff;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            min-height: 100vh;
+
+            margin: 0;
+
+            padding: 10px;
+
+            box-sizing: border-box;
+
+            position: relative;
+
+            overflow-x: hidden;
+
+        }
+
+
+        /* 8-Bit Curtains (Responsive Desktop & Mobile Border Mode) */
+
+        .curtain {
+
+            position: fixed;
+
+            top: 0;
+
+            bottom: 0;
+
+            width: 16vw;
+
+            min-width: 120px;
+
+            max-width: 260px;
+
+            background-color: #5c1d24;
+
+            background-image: 
+
+                linear-gradient(90deg, #2b0b0e 15%, transparent 15%, transparent 30%, #8c2e38 30%, #8c2e38 45%, #2b0b0e 45%, #2b0b0e 60%, transparent 60%, transparent 75%, #421217 75%);
+
+            background-size: 40px 100%;
+
+            border-bottom: 8px solid #1a0507;
+
+            z-index: 100;
+
+            pointer-events: none;
+
+            box-shadow: inset -10px 0 20px rgba(0,0,0,0.6);
+
+        }
+
+        .curtain.left { left: 0; border-right: 8px solid #1a0507; }
+
+        .curtain.right { right: 0; border-left: 8px solid #1a0507; transform: scaleX(-1); }
+
+        .curtain::before {
+
+            content: "";
+
+            position: absolute;
+
+            top: 0;
+
+            left: 0;
+
+            right: 0;
+
+            height: 24px;
+
+            background-color: #8c2e38;
+
+            background-image: linear-gradient(90deg, #1a0507 50%, #5c1d24 50%);
+
+            background-size: 16px 16px;
+
+            border-bottom: 4px solid #1a0507;
+
+        }
+
+
+        /* Mobile portrait / narrow viewports: reduce curtains to a slim maroon border frame */
+
+        @media (max-width: 768px) {
+
+            .curtain {
+
+                width: 14px !important;
+
+                min-width: 14px !important;
+
+                max-width: 14px !important;
+
+                background-image: none !important;
+
+                background-color: #5c1d24 !important;
+
+                box-shadow: inset -2px 0 4px rgba(0,0,0,0.8);
+
+            }
+
+            .curtain::before {
+
+                display: none;
+
+            }
+
+            .curtain.left { border-right: 2px solid #1a0507; }
+
+            .curtain.right { border-left: 2px solid #1a0507; transform: none; }
+
+            body {
+
+                padding: 6px;
+
+            }
+
+        }
+
+
+        /* Screen-size-dynamic margins so elements don't get covered by curtains when not fullscreen */
+
+        .main-layout { 
+
+            width: 100%; 
+
+            max-width: 900px; 
+
+            gap: 12px; 
+
+            display: flex; 
+
+            flex-direction: column; 
+
+            z-index: 1; 
+
+            align-items: center;
+
+            margin-left: 18vw;
+
+            margin-right: 18vw;
+
+            box-sizing: border-box;
+
+        }
+
+
+        @media (min-width: 769px) {
+
+            .main-layout {
+
+                max-width: calc(100vw - 36vw);
+
+            }
+
+        }
+
+
+        @media (max-width: 768px) {
+
+            .main-layout {
+
+                margin-left: 20px;
+
+                margin-right: 20px;
+
+                max-width: calc(100vw - 40px);
+
+            }
+
+        }
+
+
+        .now-playing-banner { 
+
+            width: 100%;
+
+            box-sizing: border-box;
+
+            background: #1e1e1e; 
+
+            border: 1px solid #333; 
+
+            border-radius: 8px; 
+
+            padding: 10px 14px; 
+
+            display: flex; 
+
+            justify-content: space-between; 
+
+            align-items: center; 
+
+        }
+
+        .title { font-size: 14px; font-weight: bold; color: #ff7777; }
+
+        
+
+        #player-container { 
+
+            width: 100%; 
+
+            max-width: 1000px;
+
+            aspect-ratio: 16/9; 
+
+            background: #000; 
+
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+
+            border-radius: 12px; 
+
+            overflow: hidden; 
+
+            position: relative; 
+
+        }
+
+
+        #tutorial-overlay {
+
+            position: absolute;
+
+            top: 0;
+
+            left: 0;
+
+            width: 100%;
+
+            height: 100%;
+
+            background: #161616;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            z-index: 9;
+
+            transition: opacity 0.4s ease;
+
+        }
+
+        #tutorial-overlay.hidden {
+
+            opacity: 0;
+
+            pointer-events: none;
+
+        }
+
+
+        /* Mini Curtains framing the tutorial text box */
+
+        .mini-curtain-frame {
+
+            position: relative;
+
+            width: 480px;
+
+            max-width: 85%;
+
+            background: #161616;
+
+            border-top: 6px solid #8c2e38;
+
+            border-bottom: 6px solid #1a0507;
+
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding: 24px 20px;
+
+            box-sizing: border-box;
+
+            text-align: center;
+
+            gap: 10px;
+
+        }
+
+        .mini-curtain-frame::before, .mini-curtain-frame::after {
+
+            content: "";
+
+            position: absolute;
+
+            top: -6px;
+
+            bottom: -6px;
+
+            width: 36px;
+
+            background-color: #5c1d24;
+
+            background-image: linear-gradient(0deg, #2b0b0e 15%, transparent 15%, transparent 30%, #8c2e38 30%, #8c2e38 45%, #2b0b0e 45%);
+
+            background-size: 100% 30px;
+
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+
+            z-index: 2;
+
+        }
+
+        .mini-curtain-frame::before { left: -36px; border-right: 3px solid #1a0507; }
+
+        .mini-curtain-frame::after { right: -36px; border-left: 3px solid #1a0507; transform: scaleX(-1); }
+
+
+        .tutorial-text {
+
+            font-family: monospace;
+
+            font-size: 16px;
+
+            line-height: 1.5;
+
+            color: #95a5a6;
+
+            font-weight: bold;
+
+            text-shadow: 2px 2px #000;
+
+            z-index: 3;
+
+        }
+
+
+        #loading-overlay {
+
+            position: absolute;
+
+            top: 0;
+
+            left: 0;
+
+            width: 100%;
+
+            height: 100%;
+
+            background: #161616;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 12px;
+
+            z-index: 10;
+
+            transition: opacity 0.4s ease;
+
+        }
+
+        #loading-overlay.hidden {
+
+            opacity: 0;
+
+            pointer-events: none;
+
+        }
+
+        .loading-text {
+
+            font-size: 13px;
+
+            color: #aaa;
+
+            font-family: monospace;
+
+        }
+
+
+        /* Subtle Maroon Progress Bar Container with Green Fill */
+
+        .progress-track {
+
+            width: 220px;
+
+            height: 12px;
+
+            background: #2b0b0e;
+
+            border: 2px solid #5c1d24;
+
+            border-radius: 4px;
+
+            overflow: hidden;
+
+            box-sizing: border-box;
+
+        }
+
+        .progress-fill {
+
+            width: 0%;
+
+            height: 100%;
+
+            background-color: #2ecc71;
+
+            transition: width 0.3s ease;
+
+        }
+
+        
+
+        .control-panel { 
+
+            width: 100%;
+
+            box-sizing: border-box;
+
+            background: #1e1e1e; 
+
+            padding: 16px 20px; 
+
+            border-radius: 12px; 
+
+            border: 1px solid #333; 
+
+            transition: all 0.3s ease; 
+
+        }
+
+        .control-panel.collapsed { padding: 10px 20px; }
+
+        .control-panel.collapsed #input-container { display: none; }
+
+        
+
+        textarea { width: 100%; height: 80px; background: #121212; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 10px; font-family: monospace; resize: vertical; box-sizing: border-box; white-space: pre; word-wrap: normal; overflow-x: auto; }
+
+        textarea:focus { outline: none; border-color: #2ecc71; }
+
+        
+
+        .button-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+        
+
+        button { background-color: #2ecc71; color: black; border: none; padding: 10px 18px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+
+        button:hover { background-color: #27ae60; }
+
+        button.secondary { background-color: #333; color: #aaa; padding: 8px 14px; font-size: 13px; }
+
+        button.secondary:hover { background-color: #444; color: #fff; }
+
+        button.toggle-btn { background: none; color: #bbb; font-size: 16px; border: none; cursor: pointer; padding: 4px 8px; }
+
+        button.toggle-btn:hover { color: #fff; background: #2a2a2a; border-radius: 4px; }
+
+        
+
+        #mg-toggle { 
+
+            width: 100%; 
+
+            margin-top: 10px; 
+
+            background: #2c3e50; 
+
+            color: #95a5a6; 
+
+            font-size: 12px; 
+
+            padding: 8px; 
+
+            font-weight: bold;
+
+        }
+
+        #mg-toggle:hover { background: #34495e; }
+
+        #mg-toggle.active { background: #2ecc71; color: black; }
+
+        #mg-toggle.active:hover { background: #27ae60; }
+
+
+        #click-hint { font-size: 13px; color: #666; font-style: italic; }
+
+    </style>
+
+</head>
+
+<body>
+
+
+    <div class="curtain left"></div>
+
+    <div class="curtain right"></div>
+
+
+    <div class="main-layout">
+
+        <div class="now-playing-banner">
+
+            <div class="now-playing-info">
+
+                <span style="font-size: 11px; color: #888; text-transform: uppercase; font-weight: bold;">Now Playing<span id="now-playing-mode" style="color: #2ecc71;"></span></span><br>
+
+                <span id="current-song-title" class="title">Waiting for playback to begin...</span>
+
+            </div>
+
+            <button class="secondary" onclick="handleSkipButton()">Next ▶▶</button>
+
+        </div>
+
+
+        <div id="player-container">
+
+            <div id="tutorial-overlay">
+
+                <div class="mini-curtain-frame">
+
+                    <div class="tutorial-text">Enter YouTube Playlists Below</div>
+
+                    <div class="tutorial-text">Then 'Go Go Radio!'</div>
+
+                    <div class="tutorial-text" style="color: #5dade2; margin-top: 2px;">-or-</div>
+
+                    <div class="tutorial-text">Switch On Radio M.Gorille</div>
+
+                </div>
+
+            </div>
+
+            <div id="loading-overlay" class="hidden">
+
+                <span id="overlay-status" class="loading-text">Loading...</span>
+
+                <div class="progress-track">
+
+                    <div id="progress-bar-fill" class="progress-fill"></div>
+
+                </div>
+
+            </div>
+
+            <div id="youtube-player"></div>
+
+        </div>
+
+
+        <div id="control-panel" class="control-panel collapsed">
+
+            <div class="button-row">
+
+                <div style="display:flex; align-items:center; gap:10px;">
+
+                    <button class="toggle-btn" id="toggle-collapse-btn" onclick="toggleControlPanel()">▼</button>
+
+                    <span id="status-display" style="font-size: 13px; color: #bbb;">Ready.</span>
+
+                    <span id="click-hint" style="font-size: 13px; color: #666; font-style: italic;">(click to add playlists)</span>
+
+                </div>
+
+                <button onclick="initJukebox()">Go Go Radio!</button>
+
+            </div>
+
+            <div id="input-container">
+
+                <p style="font-size: 13px; color: #bbb; margin: 0 0 8px 0;">Paste your Playlist URLs (one per line):</p>
+
+                <textarea id="playlist-input" wrap="off"></textarea>
+
+                <button id="mg-toggle" onclick="toggleMGorilleMode()">Radio M.Gorille</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+
+        let player, masterTrackPool = [], isJukeboxActive = false;
+
+        let isMGMode = false;
+
+        let savedUserInput = "";
+
+        let ytApiReady = false;
+
+        
+
+        const mgPlaylists = [
+
+            "PLummJXUqplFwnSWc9NmoReXUxzex2nePK",
+
+            "PLummJXUqplFz6ehgqp3BRasOXui-BOvy2",
+
+            "PLummJXUqplFz32oq9s-NvLBcGvUJPTKAJ",
+
+            "PLummJXUqplFx-CgLEqtgnTb0ZwVHaNbLj",
+
+            "PLummJXUqplFxJS99_arpvNs3iG43tWlQC",
+
+            "PLummJXUqplFy1OD7kUbix8RGeK-Xg5Rsp",
+
+            "PLummJXUqplFyItji9z1gz3NyTdp2Iy7ND"
+
+        ];
+
+
+        window.addEventListener('DOMContentLoaded', () => {
+
+            const saved = localStorage.getItem('saved_jukebox_playlists');
+
+            if (saved) {
+
+                document.getElementById('playlist-input').value = saved;
+
+            }
+
+
+            const wasMG = localStorage.getItem('saved_mg_mode') === 'true';
+
+            if (wasMG) {
+
+                isMGMode = true;
+
+                const btn = document.getElementById('mg-toggle');
+
+                const input = document.getElementById('playlist-input');
+
+                const modeIndicator = document.getElementById('now-playing-mode');
+
+                
+
+                btn.classList.add('active');
+
+                input.value = "Enjoy!";
+
+                input.disabled = true;
+
+                btn.innerText = "Radio M.Gorille: ON";
+
+                modeIndicator.innerText = ": Radio M.Gorille";
+
+            }
+
+            
+
+            localStorage.removeItem('saved_mg_mode');
+
+
+            // Set initial hint visibility based on control panel collapsed state
+
+            const panel = document.getElementById('control-panel');
+
+            const hint = document.getElementById('click-hint');
+
+            if (panel.classList.contains('collapsed')) {
+
+                hint.style.display = 'inline';
+
+            } else {
+
+                hint.style.display = 'none';
+
+            }
+
+
+            // Intercept paste events to automatically append a newline so the cursor drops down immediately
+
+            const textarea = document.getElementById('playlist-input');
+
+            textarea.addEventListener('paste', (e) => {
+
+                if (isMGMode) return;
+
+                e.preventDefault();
+
+                
+
+                const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+
+                const start = textarea.selectionStart;
+
+                const end = textarea.selectionEnd;
+
+                const val = textarea.value;
+
+
+                let addition = pastedData;
+
+                if (!addition.endsWith('\n') && !addition.endsWith('\r')) {
+
+                    addition += '\n';
+
+                }
+
+
+                textarea.value = val.substring(0, start) + addition + val.substring(end);
+
+                
+
+                const newCursorPos = start + addition.length;
+
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+
+                
+
+                localStorage.setItem('saved_jukebox_playlists', textarea.value);
+
+            });
+
+        });
+
+
+        function onYouTubeIframeAPIReady() {
+
+            ytApiReady = true;
+
+            player = new YT.Player('youtube-player', { 
+
+                height: '100%', 
+
+                width: '100%', 
+
+                playerVars: {
+
+                    'autoplay': 1,
+
+                    'enablejsapi': 1,
+
+                    'origin': window.location.origin
+
+                },
+
+                events: { 
+
+                    'onReady': () => {},
+
+                    'onStateChange': e => { 
+
+                        if(e.data === 0) {
+
+                            handleVideoEnd();
+
+                        }
+
+                        updateSongTitle();
+
+                    }, 
+
+                    'onError': () => {
+
+                        if (isJukeboxActive) playRandomMasterTrack();
+
+                    } 
+
+                } 
+
+            });
+
+        }
+
+
+        function toggleMGorilleMode() {
+
+            isMGMode = !isMGMode;
+
+            const btn = document.getElementById('mg-toggle');
+
+            const input = document.getElementById('playlist-input');
+
+            const modeIndicator = document.getElementById('now-playing-mode');
+
+            btn.classList.toggle('active');
+
+
+            if (isMGMode) {
+
+                savedUserInput = input.value;
+
+                input.value = "Enjoy!";
+
+                input.disabled = true;
+
+                btn.innerText = "Radio M.Gorille: ON";
+
+                modeIndicator.innerText = ": Radio M.Gorille";
+
+                localStorage.setItem('saved_mg_mode', 'true');
+
+            } else {
+
+                input.disabled = false;
+
+                input.value = savedUserInput;
+
+                btn.innerText = "Radio M.Gorille";
+
+                modeIndicator.innerText = "";
+
+                localStorage.setItem('saved_mg_mode', 'false');
+
+            }
+
+
+            initJukebox();
+
+        }
+
+
+        function toggleControlPanel() { 
+
+            const panel = document.getElementById('control-panel');
+
+            const hint = document.getElementById('click-hint');
+
+            panel.classList.toggle('collapsed'); 
+
+
+            if (panel.classList.contains('collapsed')) {
+
+                hint.style.display = 'inline';
+
+            } else {
+
+                hint.style.display = 'none';
+
+            }
+
+        }
+
+
+        async function initJukebox() {
+
             let targetPlaylists = [];
+
             let modeTitle = isMGMode ? "Loading Radio M.Gorille" : "Loading Your Playlists";
+
 
             document.getElementById('current-song-title').innerText = "Loading...";
 
+
             if (isMGMode) {
+
                 targetPlaylists = mgPlaylists;
+
                 localStorage.setItem('saved_mg_mode', 'true');
+
             } else {
+
                 const rawText = document.getElementById('playlist-input').value;
+
                 localStorage.setItem('saved_jukebox_playlists', rawText);
+
                 localStorage.setItem('saved_mg_mode', 'false');
+
                 targetPlaylists = [...new Set(rawText.split(/[\n,]+/).map(i => {
+
                     if (i.includes('list=')) {
+
                         try {
+
                             const url = new URL(i.startsWith('http') ? i : 'https://www.youtube.com' + i);
+
                             return url.searchParams.get('list');
+
                         } catch (e) { return null; }
+
                     }
+
                     return i.trim().length > 5 ? i.trim() : null;
+
                 }).filter(Boolean))];
+
             }
+
 
             if (targetPlaylists.length === 0) {
+
                 alert('Please enter at least one valid playlist URL.');
+
                 document.getElementById('current-song-title').innerText = "Waiting for playback to begin...";
+
                 return;
+
             }
 
+
             isJukeboxActive = true;
+
             masterTrackPool = [];
+
             
+
             if (player && typeof player.mute === 'function') {
+
                 player.mute();
+
             }
+
 
             document.getElementById('tutorial-overlay').classList.add('hidden');
 
+
             const overlay = document.getElementById('loading-overlay');
+
             const fillBar = document.getElementById('progress-bar-fill');
+
             const statusLabel = document.getElementById('overlay-status');
+
             
+
             overlay.classList.remove('hidden');
+
             fillBar.style.width = '0%';
 
+
             if (isMGMode) {
+
                 statusLabel.innerText = `${modeTitle}...`;
+
             } else {
+
                 statusLabel.innerText = `${modeTitle}... (0/${targetPlaylists.length})`;
+
             }
+
             document.getElementById('status-display').innerText = `${modeTitle}...`;
 
+
             for (let i = 0; i < targetPlaylists.length; i++) {
+
                 let currentCount = i + 1;
+
                 let percent = Math.round((currentCount / targetPlaylists.length) * 100);
+
                 
+
                 fillBar.style.width = percent + '%';
+
                 
+
                 if (isMGMode) {
+
                     statusLabel.innerText = `${modeTitle}...`;
+
                 } else {
+
                     statusLabel.innerText = `${modeTitle}... (${currentCount}/${targetPlaylists.length})`;
-                }
-                
-                player.loadPlaylist({list: targetPlaylists[i], listType: 'playlist', index: 0});
-                
-                // Safety-capped timeout loop: will never hang infinitely
-                let fetchedTracks = false;
-                let startTime = Date.now();
-                while (Date.now() - startTime < 2500) {
-                    await new Promise(r => setTimeout(r, 300));
-                    try {
-                        const tracks = player.getPlaylist();
-                        if (tracks && Array.isArray(tracks) && tracks.length > 0) {
-                            tracks.forEach(vId => masterTrackPool.push(vId));
-                            fetchedTracks = true;
-                            break;
-                        }
-                    } catch (e) {}
+
                 }
 
-                // Fallback: If network/adblocker blocks getPlaylist(), use the playlist ID directly
-                if (!fetchedTracks) {
-                    masterTrackPool.push(targetPlaylists[i]);
-                }
+                
+
+                player.loadPlaylist({list: targetPlaylists[i], listType: 'playlist', index: 0});
+
+                await new Promise(r => setTimeout(r, 1500));
+
+                try {
+
+                    const tracks = player.getPlaylist();
+
+                    if(tracks && Array.isArray(tracks)) {
+
+                        tracks.forEach(vId => masterTrackPool.push(vId));
+
+                    }
+
+                } catch (e) {}
+
             }
+
             
+
             masterTrackPool = [...new Set(masterTrackPool)];
+
             
+
             if (player && typeof player.unMute === 'function') {
+
                 player.unMute();
+
             }
+
 
             overlay.classList.add('hidden');
+
             
+
             const panel = document.getElementById('control-panel');
+
             const hint = document.getElementById('click-hint');
+
             if (!panel.classList.contains('collapsed')) {
+
                 panel.classList.add('collapsed');
+
                 hint.style.display = 'inline';
+
             }
+
             
+
             if (masterTrackPool.length > 0) {
+
                 playRandomMasterTrack();
+
             } else {
+
                 alert('Could not index tracks. Make sure the playlist links are public.');
+
                 document.getElementById('current-song-title').innerText = "Waiting for playback to begin...";
+
             }
+
         }
+
+
+        function handleVideoEnd() {
+
+            if (isJukeboxActive && masterTrackPool.length > 0) {
+
+                playRandomMasterTrack();
+
+            }
+
+        }
+
+
+        function handleSkipButton() {
+
+            if (isJukeboxActive && masterTrackPool.length > 0) {
+
+                document.getElementById('current-song-title').innerText = "Loading...";
+
+                playRandomMasterTrack();
+
+            } else {
+
+                initJukebox();
+
+            }
+
+        }
+
+
+        function playRandomMasterTrack() {
+
+            if(!isJukeboxActive || masterTrackPool.length === 0) return;
+
+            player.loadVideoById(masterTrackPool[Math.floor(Math.random() * masterTrackPool.length)]);
+
+            updateSongTitle();
+
+            document.getElementById('status-display').innerText = `Tracks: ${masterTrackPool.length}`;
+
+        }
+
+
+        function updateSongTitle() {
+
+            if (player && typeof player.isMuted === 'function' && player.isMuted()) {
+
+                document.getElementById('current-song-title').innerText = "Loading...";
+
+                return;
+
+            }
+
+
+            setTimeout(() => {
+
+                if (player && typeof player.isMuted === 'function' && player.isMuted()) {
+
+                    document.getElementById('current-song-title').innerText = "Loading...";
+
+                    return;
+
+                }
+
+
+                if (player && typeof player.getVideoData === 'function') {
+
+                    const data = player.getVideoData();
+
+                    if (data && data.title) {
+
+                        document.getElementById('current-song-title').innerText = data.title;
+
+                    }
+
+                }
+
+            }, 600);
+
+        }
+
+    </script>
+
+</body>
+
+</html> 
